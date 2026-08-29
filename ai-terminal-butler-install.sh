@@ -22,7 +22,13 @@ except ImportError:
     pass
 
 # ==================== 配置 ====================
-API_PROVIDER = "deepseek"   # 改这里: deepseek / kimi / openai
+# 服务商可用环境变量 AI_PROVIDER 临时切换（如 AI_PROVIDER=local ai），也可直接改这里的默认值
+API_PROVIDER = os.environ.get("AI_PROVIDER", "deepseek").lower()   # 可选: deepseek / kimi / openai / local
+
+# 本地模型配置（llama.cpp / vllm / ollama 等兼容 OpenAI 格式的服务）
+# 用法: export LOCAL_API_BASE=http://127.0.0.1:8080 并以 AI_PROVIDER=local 启动
+LOCAL_API_BASE = os.environ.get("LOCAL_API_BASE", "http://127.0.0.1:8080").rstrip("/")
+LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "local-model")
 
 API_CONFIG = {
     "deepseek": {
@@ -39,8 +45,17 @@ API_CONFIG = {
         "url": "https://api.openai.com/v1/chat/completions",
         "model": "gpt-4o-mini",
         "key": os.environ.get("OPENAI_API_KEY", "")
+    },
+    "local": {
+        "url": f"{LOCAL_API_BASE}/v1/chat/completions",
+        "model": LOCAL_MODEL,
+        # llama.cpp 默认不校验 key，随便填一个占位即可
+        "key": os.environ.get("LOCAL_API_KEY", "local-no-key")
     }
 }
+
+# 本地模型推理较慢（尤其低配 ARM 设备），超时给更长
+API_TIMEOUT = 300 if API_PROVIDER == "local" else 60
 
 # 系统信息模板（让 AI 了解环境）
 SYS_INFO = f"""你是 Linux 系统管理员助手。
@@ -78,7 +93,7 @@ def call_api(messages):
     )
     
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=API_TIMEOUT) as resp:
             result = json.loads(resp.read().decode('utf-8'))
             return result['choices'][0]['message']['content']
     except Exception as e:
@@ -196,13 +211,21 @@ def main():
     # 修复串口/终端退格键显示 ^H 的问题（把 tty 擦除符设为 ^H）
     os.system("stty erase ^h 2>/dev/null")
 
-    # 检查 API Key（通过环境变量传入）
-    cfg = API_CONFIG[API_PROVIDER]
-    env_name = {"deepseek": "DEEPSEEK_API_KEY", "kimi": "KIMI_API_KEY", "openai": "OPENAI_API_KEY"}[API_PROVIDER]
-    if not cfg["key"]:
-        print("错误: 请先设置 API Key 环境变量")
-        print(f"  export {env_name}=sk-你的Key")
+    # 检查服务商名是否有效（防止 AI_PROVIDER 写错）
+    if API_PROVIDER not in API_CONFIG:
+        print(f"错误: 未知的服务商 '{API_PROVIDER}'，可选: deepseek / kimi / openai / local")
         sys.exit(1)
+
+    # 检查 API Key（通过环境变量传入；local 模式无需 Key，只检查服务地址）
+    cfg = API_CONFIG[API_PROVIDER]
+    if API_PROVIDER == "local":
+        print(f"本地模型服务: {cfg['url']} (模型: {cfg['model']})")
+    else:
+        env_name = {"deepseek": "DEEPSEEK_API_KEY", "kimi": "KIMI_API_KEY", "openai": "OPENAI_API_KEY"}[API_PROVIDER]
+        if not cfg["key"]:
+            print("错误: 请先设置 API Key 环境变量")
+            print(f"  export {env_name}=sk-你的Key")
+            sys.exit(1)
     
     # 初始化对话
     messages = [{"role": "system", "content": SYS_INFO}]

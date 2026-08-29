@@ -4,7 +4,7 @@
 
 适合 1GB 内存 ARMv7 低配服务器的 AI 命令行助手。纯 Python 标准库实现，无第三方依赖。
 
-- 支持：DeepSeek / Kimi / OpenAI
+- 支持：DeepSeek / Kimi / OpenAI / 本地模型（llama.cpp 等兼容 OpenAI 格式的服务）
 - 特性：多轮对话、命令建议、一键确认执行、高危命令拦截、执行日志
 
 ## 一、安装
@@ -90,6 +90,33 @@ source ~/.bashrc
 >
 > 注意：切换服务商还需要修改脚本内的 `API_PROVIDER` 配置（见第五节）。
 
+### 方式三：本地模型（无需 API Key）
+
+如果你在局域网或本机上用 llama.cpp 的 `llama-server`（或 vLLM、ollama 等任何兼容 OpenAI chat completions 格式的服务）部署了模型（如 MiniCPM、Qwen 等），可以让助手直接调用本地模型，**无需 API Key、不联网、零费用**。
+
+先在服务器上启动 llama.cpp 服务（示例）：
+
+```bash
+# 默认监听 8080 端口，提供 /v1/chat/completions 接口
+./llama-server -m 你的模型.gguf --port 8080
+```
+
+然后在 `~/.env` 中追加服务地址（llama.cpp 默认端口是 8080，按实际修改）：
+
+```bash
+LOCAL_API_BASE=http://127.0.0.1:8080
+# 可选：指定模型名，llama.cpp 不校验该值，仅作展示
+LOCAL_MODEL=MiniCPM
+```
+
+重新加载环境变量 `source ~/.bashrc`，并把 `API_PROVIDER` 改为 `"local"`（见第五节）即可。
+
+> 说明：
+>
+> - llama.cpp 默认不校验 API Key，无需配置；如果服务开了 `--api-key`，再配置 `LOCAL_API_KEY=你的Key` 即可
+> - 本地模型推理较慢（尤其低配 ARM 设备），脚本已自动把超时放宽到 300 秒，"AI 思考中..." 等久一点属正常现象
+> - 小模型（如 1~3B）对复杂命令的理解不如 DeepSeek 等大模型，建议仍然留意高危命令警告
+
 ## 三、使用
 
 ```bash
@@ -134,13 +161,29 @@ ai
 
 ## 五、切换服务商
 
-编辑 `/usr/local/bin/ai` 第 25 行：
+**方式一：启动时用环境变量临时切换（推荐，不改文件）**
 
-```python
-API_PROVIDER = "deepseek"   # 改这里: deepseek / kimi / openai
+```bash
+# 临时用本地模型启动一次
+AI_PROVIDER=local ai
+
+# 临时用 Kimi 启动一次
+AI_PROVIDER=kimi ai
 ```
 
-改为 `kimi` 或 `openai`，并确保对应的环境变量已按第二节配置。
+只对当次启动生效，退出后下次仍是默认服务商。
+
+**方式二：改默认值**
+
+编辑 `/usr/local/bin/ai` 第 26 行：
+
+```python
+API_PROVIDER = os.environ.get("AI_PROVIDER", "deepseek").lower()   # 可选: deepseek / kimi / openai / local
+```
+
+把 `"deepseek"` 改成 `kimi`、`openai` 或 `local` 即可永久生效。也可以把 `AI_PROVIDER=local` 写进 `~/.env`（配合第二节的方式二），登录后自动生效。
+
+无论哪种方式，都要确保对应的环境变量已配置（本地模型需配置 `LOCAL_API_BASE`）。
 
 ## 六、执行日志
 
