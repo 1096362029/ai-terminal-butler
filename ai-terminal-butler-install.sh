@@ -111,10 +111,10 @@ def check_dangerous(cmd):
             risks.append(desc)
     return risks
 
-LOG_DIR = "/var/log/ai"
+LOG_DIR = os.path.expanduser("~/.ai-log")
 
 def log_command(cmd, output=None):
-    """按日记录命令执行日志: /var/log/ai/ai-YYYY-MM-DD.log"""
+    """按日记录命令执行日志: ~/.ai-log/ai-YYYY-MM-DD.log"""
     try:
         os.makedirs(LOG_DIR, exist_ok=True)
         logfile = os.path.join(LOG_DIR, "ai-%s.log" % datetime.date.today().isoformat())
