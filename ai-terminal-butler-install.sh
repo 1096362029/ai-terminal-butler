@@ -142,6 +142,56 @@ def execute_command(cmd):
     except Exception as e:
         return f"(执行失败: {e})"
 
+def confirm_and_execute(messages, reply, max_rounds=5):
+    """显示回复、提取命令并询问执行；执行结果反馈 AI 后，新建议里的命令同样走确认流程"""
+    current = reply
+    for _ in range(max_rounds):  # 限制轮数，防止 AI 无限追加命令
+        print(f"\n\033[32mAI >\033[0m {current}")
+
+        commands = extract_commands(current)
+        executed = False
+        for cmd in commands:
+            risks = check_dangerous(cmd)
+            try:
+                if risks:
+                    print(f"\n\033[41;37m *** 高危命令警告 ***\033[0m")
+                    for r in risks:
+                        print(f"\033[1;31m  ⚠ {r}\033[0m")
+                    confirm = input("\033[1;31m此命令可能造成不可逆的破坏! 请输入 yes 确认执行，其它任意内容取消: \033[0m").strip().lower()
+                else:
+                    confirm = input(f"\n\033[33m是否执行上述命令? [Y/n/s(跳过)] \033[0m").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                confirm = "n"
+
+            if risks:
+                confirmed = (confirm == "yes")
+            else:
+                confirmed = confirm in ("", "y", "yes")
+
+            if confirmed:
+                output = execute_command(cmd)
+                print(f"\033[90m{output}\033[0m")
+                log_command(cmd, output)
+                # 把执行结果反馈给 AI，方便继续排查
+                messages.append({"role": "user", "content": f"命令执行结果:\n{output}"})
+                executed = True
+            elif confirm == "s":
+                print("已跳过")
+            else:
+                print("已取消执行")
+
+        # 没有执行任何命令，或 AI 没有后续建议，结束本轮
+        if not executed:
+            break
+
+        print("\n\033[35mAI 分析结果中...\033[0m")
+        current = call_api(messages)
+        messages.append({"role": "assistant", "content": current})
+        # 若跟进回复里没有新命令，打印后自然结束
+        if not extract_commands(current):
+            print(f"\n\033[32mAI >\033[0m {current}")
+            break
+
 def main():
     # 修复串口/终端退格键显示 ^H 的问题（把 tty 擦除符设为 ^H）
     os.system("stty erase ^h 2>/dev/null")
@@ -181,44 +231,8 @@ def main():
         reply = call_api(messages)
         messages.append({"role": "assistant", "content": reply})
         
-        # 显示回复
-        print(f"\n\033[32mAI >\033[0m {reply}")
-        
-        # 提取并询问是否执行命令
-        commands = extract_commands(reply)
-        for cmd in commands:
-            risks = check_dangerous(cmd)
-            try:
-                if risks:
-                    print(f"\n\033[41;37m *** 高危命令警告 ***\033[0m")
-                    for r in risks:
-                        print(f"\033[1;31m  ⚠ {r}\033[0m")
-                    confirm = input("\033[1;31m此命令可能造成不可逆的破坏! 请输入 yes 确认执行，其它任意内容取消: \033[0m").strip().lower()
-                else:
-                    confirm = input(f"\n\033[33m是否执行上述命令? [Y/n/s(跳过)] \033[0m").strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                confirm = "n"
-
-            if risks:
-                confirmed = (confirm == "yes")
-            else:
-                confirmed = confirm in ("", "y", "yes")
-
-            if confirmed:
-                output = execute_command(cmd)
-                print(f"\033[90m{output}\033[0m")
-                log_command(cmd, output)
-                
-                # 把执行结果反馈给 AI，方便继续排查
-                messages.append({"role": "user", "content": f"命令执行结果:\n{output}"})
-                print("\n\033[35mAI 分析结果中...\033[0m")
-                followup = call_api(messages)
-                messages.append({"role": "assistant", "content": followup})
-                print(f"\n\033[32mAI >\033[0m {followup}")
-            elif confirm == "s":
-                print("已跳过")
-            else:
-                print("已取消执行")
+        # 显示回复、提取命令并询问是否执行（跟进建议同样走确认流程）
+        confirm_and_execute(messages, reply)
 
 if __name__ == "__main__":
     main()
