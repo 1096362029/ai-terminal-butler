@@ -54,16 +54,20 @@ API_CONFIG = {
     }
 }
 
-# 自定义 API 地址和模型 ID（可选，对当前服务商生效，优先级最高）
-# 用法: AI_API_BASE=https://api.example.com/v1 AI_MODEL=my-model ai
+# 自定义 API 地址、模型 ID 和 Key（可选，对当前服务商生效，优先级最高）
+# 用法: AI_API_BASE=https://api.example.com/v1 AI_MODEL=my-model AI_API_KEY=sk-xxx ai
 # AI_API_BASE 只需填到 /v1 即可，程序自动补全 /chat/completions；填完整地址则原样使用
+# AI_API_KEY 设置后优先于 DEEPSEEK_API_KEY / KIMI_API_KEY / OPENAI_API_KEY 使用
 CUSTOM_API_BASE = os.environ.get("AI_API_BASE", "").strip()
 CUSTOM_MODEL = os.environ.get("AI_MODEL", "").strip()
+CUSTOM_API_KEY = os.environ.get("AI_API_KEY", "").strip()
 if CUSTOM_API_BASE:
     _base = CUSTOM_API_BASE.rstrip("/")
     API_CONFIG[API_PROVIDER]["url"] = _base if _base.endswith("/chat/completions") else _base + "/chat/completions"
 if CUSTOM_MODEL:
     API_CONFIG[API_PROVIDER]["model"] = CUSTOM_MODEL
+if CUSTOM_API_KEY:
+    API_CONFIG[API_PROVIDER]["key"] = CUSTOM_API_KEY
 
 # 本地模型推理较慢（尤其低配 ARM 设备），超时给更长
 API_TIMEOUT = 300 if API_PROVIDER == "local" else 60
@@ -235,7 +239,8 @@ def main():
         env_name = {"deepseek": "DEEPSEEK_API_KEY", "kimi": "KIMI_API_KEY", "openai": "OPENAI_API_KEY"}[API_PROVIDER]
         if not cfg["key"]:
             print("错误: 请先设置 API Key 环境变量")
-            print(f"  export {env_name}=sk-你的Key")
+            print(f"  export AI_API_KEY=sk-你的Key          # 通用 Key，对当前服务商生效")
+            print(f"  export {env_name}=sk-你的Key   # 或用该服务商专用的 Key")
             sys.exit(1)
     
     # 初始化对话

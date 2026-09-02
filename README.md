@@ -185,29 +185,32 @@ API_PROVIDER = os.environ.get("AI_PROVIDER", "deepseek").lower()   # 可选: dee
 
 无论哪种方式，都要确保对应的环境变量已配置（本地模型需配置 `LOCAL_API_BASE`）。
 
-### 自定义 API 地址和模型 ID
+### 自定义 API 地址、模型 ID 和 Key
 
-想用第三方中转、私有部署网关，或指定其它模型 ID 时，不用改代码，通过两个环境变量覆盖当前服务商的默认值：
+想用第三方中转、私有部署网关，或指定其它模型 ID / Key 时，不用改代码，通过三个环境变量覆盖当前服务商的默认值：
 
 | 环境变量      | 作用            | 示例                         |
 | ------------- | --------------- | ---------------------------- |
 | `AI_API_BASE` | 自定义 API 地址 | `https://api.example.com/v1` |
 | `AI_MODEL`    | 自定义模型 ID   | `deepseek-r1` / `gpt-4o` 等  |
+| `AI_API_KEY`  | 自定义 API Key  | `sk-xxxx`                    |
 
 ```bash
 # 临时使用（对当前服务商生效）
-AI_API_BASE=https://api.example.com/v1 AI_MODEL=my-model ai
+AI_API_BASE=https://api.example.com/v1 AI_MODEL=my-model AI_API_KEY=sk-xxxx ai
 
 # 永久使用：写入 ~/.env 后 source ~/.bashrc
 AI_API_BASE=https://api.example.com/v1
 AI_MODEL=my-model
+AI_API_KEY=sk-xxxx
 ```
 
 说明：
 
 - `AI_API_BASE` 只需填到 `/v1` 即可，程序会自动补全 `/chat/completions`；填了完整地址则原样使用。
-- 两个变量都是可选的，只设置其中一个就只覆盖那一项。
-- Key 仍使用当前服务商对应的环境变量（如 `DEEPSEEK_API_KEY`）；如中转站需要单独的 Key，配合 `AI_PROVIDER=openai` 使用 `OPENAI_API_KEY` 存放即可。
+- 三个变量都是可选的，只设置其中一个就只覆盖那一项。
+- `AI_API_KEY` 设置后优先于 `DEEPSEEK_API_KEY` / `KIMI_API_KEY` / `OPENAI_API_KEY`；不设置则仍使用当前服务商对应的 Key。
+- 不知道该挂到哪个服务商名下时，保持默认 `AI_PROVIDER=deepseek`，三个 `AI_*` 变量全设置即可，效果等同于直接使用自定义接口。
 
 ## 六、执行日志
 
