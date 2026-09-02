@@ -11,6 +11,7 @@ import datetime
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import urllib.request
@@ -69,8 +70,8 @@ if CUSTOM_MODEL:
 if CUSTOM_API_KEY:
     API_CONFIG[API_PROVIDER]["key"] = CUSTOM_API_KEY
 
-# 本地模型推理较慢（尤其低配 ARM 设备），超时给更长
-API_TIMEOUT = 300 if API_PROVIDER == "local" else 60
+# 本地模型推理较慢（尤其低配 ARM 设备），超时给更长；可用 AI_API_TIMEOUT 自定义（秒）
+API_TIMEOUT = int(os.environ.get("AI_API_TIMEOUT", 300 if API_PROVIDER == "local" else 120))
 
 # 系统信息模板（让 AI 了解环境）
 SYS_INFO = f"""你是 Linux 系统管理员助手。
@@ -107,12 +108,19 @@ def call_api(messages):
         method="POST"
     )
     
-    try:
-        with urllib.request.urlopen(req, timeout=API_TIMEOUT) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
-            return result['choices'][0]['message']['content']
-    except Exception as e:
-        return f"API 调用失败: {e}"
+    last_err = None
+    for attempt in range(2):  # 超时自动重试一次，网络抖动时不至于直接失败
+        try:
+            with urllib.request.urlopen(req, timeout=API_TIMEOUT) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
+                return result['choices'][0]['message']['content']
+        except (socket.timeout, TimeoutError) as e:
+            last_err = e
+            if attempt == 0:
+                print(f"\033[33mAPI 响应超时，重试中...\033[0m")
+        except Exception as e:
+            return f"API 调用失败: {e}"
+    return f"API 调用失败: {last_err}"
 
 def extract_commands(text):
     """从 AI 回复中提取 bash 命令块"""
