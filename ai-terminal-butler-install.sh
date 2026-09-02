@@ -54,6 +54,17 @@ API_CONFIG = {
     }
 }
 
+# 自定义 API 地址和模型 ID（可选，对当前服务商生效，优先级最高）
+# 用法: AI_API_BASE=https://api.example.com/v1 AI_MODEL=my-model ai
+# AI_API_BASE 只需填到 /v1 即可，程序自动补全 /chat/completions；填完整地址则原样使用
+CUSTOM_API_BASE = os.environ.get("AI_API_BASE", "").strip()
+CUSTOM_MODEL = os.environ.get("AI_MODEL", "").strip()
+if CUSTOM_API_BASE:
+    _base = CUSTOM_API_BASE.rstrip("/")
+    API_CONFIG[API_PROVIDER]["url"] = _base if _base.endswith("/chat/completions") else _base + "/chat/completions"
+if CUSTOM_MODEL:
+    API_CONFIG[API_PROVIDER]["model"] = CUSTOM_MODEL
+
 # 本地模型推理较慢（尤其低配 ARM 设备），超时给更长
 API_TIMEOUT = 300 if API_PROVIDER == "local" else 60
 
@@ -230,7 +241,7 @@ def main():
     # 初始化对话
     messages = [{"role": "system", "content": SYS_INFO}]
     
-    print(f"🤖 AI 助手已启动 (Provider: {API_PROVIDER})")
+    print(f"🤖 AI 助手已启动 (Provider: {API_PROVIDER} | 模型: {cfg['model']})")
     print("   输入问题让 AI 帮忙，输入 exit 退出")
     print("   AI 给出的命令会询问你是否执行")
     print("-" * 50)
