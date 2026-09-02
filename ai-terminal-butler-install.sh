@@ -185,11 +185,12 @@ def confirm_and_execute(messages, reply, max_rounds=5):
             try:
                 if risks:
                     print(f"\n\033[41;37m *** 高危命令警告 ***\033[0m")
+                    print(f"\033[1;31m 命令: {cmd}\033[0m")
                     for r in risks:
                         print(f"\033[1;31m  ⚠ {r}\033[0m")
                     confirm = input("\033[1;31m此命令可能造成不可逆的破坏! 请输入 yes 确认执行，其它任意内容取消: \033[0m").strip().lower()
                 else:
-                    confirm = input(f"\n\033[33m是否执行上述命令? [Y/n/s(跳过)] \033[0m").strip().lower()
+                    confirm = input(f"\n\033[33m是否执行命令: {cmd}\n[Y/n/s(跳过)] \033[0m").strip().lower()
             except (EOFError, KeyboardInterrupt):
                 confirm = "n"
 
